@@ -31,10 +31,10 @@ TEMPS=[200,400,600,800]
 REPS=[1,2,3]
 
 TEAM=[
-{"id":"24B95A0128","name":"Ampure Vijayababu","role":"Project Lead"},
-{"id":"24B95A0119","name":"Kanteti Kodanda Naga Suresh","role":"Team Member"},
-{"id":"24B95A0112","name":"Gollavilli Jaya Lakshmi Durga Abhishek","role":"Super Admin / Team Member"},
-{"id":"24B95A0121","name":"K. Kodella Nani","role":"Team Member"},
+    {"id":"24B95A0128","name":"RAMAKURI AJAY BABU","role":"Project Lead"},
+    {"id":"24B95A0119","name":"KANTETI KODANDA NAGA SURESH","role":"Team Member"},
+    {"id":"24B95A0112","name":"GOLLAVILLI JAYA LAKSHMI DURGA ABHISHEK","role":"Super Admin / Team Member"},
+    {"id":"24B95A0121","name":"KONAGALLA NANI","role":"Team Member"},
 ]
 
 PROJECT={
