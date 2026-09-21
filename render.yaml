@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: scgpc-fire-lab
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      - key: EDITOR_PASSWORD
+        sync: false
+      - key: USER_PASSWORD
+        sync: false
