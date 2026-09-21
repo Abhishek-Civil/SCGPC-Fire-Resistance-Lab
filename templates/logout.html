@@ -1,0 +1,3 @@
+{% extends "base.html" %}{% block title %}Logout{% endblock %}{% block content %}
+<div class="logout-page"><div class="logout-icon">⇥</div><h1>Are you sure you want to logout?</h1><p>You will be signed out from the SCGPC Fire Resistance Research Lab website.</p><div class="info">ⓘ Any unsaved changes may be lost.</div><div><a class="secondary" href="{{url_for('dashboard')}}">Cancel</a><a class="danger-btn" href="{{url_for('do_logout')}}">Logout</a></div><p class="thank">Thank you for contributing to our research. 🌿</p></div>
+{% endblock %}
