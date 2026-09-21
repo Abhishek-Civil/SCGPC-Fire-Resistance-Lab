@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}SCGPC Fire Resistance Research Lab{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+{% if me %}
+<header class="topbar">
+  <div class="brand-mini"><div class="flame">🔥</div><div><b>SCGPC FIRE RESISTANCE RESEARCH LAB</b><span>Self-Compacting Geopolymer Concrete | Experiment • Analyse • Innovate</span></div></div>
+  <div class="top-quote">“Sustainable Materials<br>for a Safer Tomorrow”</div>
+  <div class="profile"><div class="avatar">{{ me.display_name[:1]|upper }}</div><div><b>{{ me.display_name }}</b><span>{{ 'Super Admin' if me.role=='superadmin' else ('Editor' if me.role=='editor' else 'Common User') }}</span></div></div>
+</header>
+<div class="shell">
+<aside class="sidebar">
+<nav>
+<a href="{{url_for('dashboard')}}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">⌂ <span>Dashboard</span></a>
+<a href="{{url_for('project_details')}}" class="{% if request.endpoint=='project_details' %}active{% endif %}">▣ <span>Project Details</span></a>
+<a href="{{url_for('data_entry')}}" class="{% if request.endpoint=='data_entry' %}active{% endif %}">✎ <span>Data Entry</span></a>
+<a href="{{url_for('graphs')}}" class="{% if request.endpoint=='graphs' %}active{% endif %}">▥ <span>Graphs</span></a>
+<a href="{{url_for('results')}}" class="{% if request.endpoint=='results' %}active{% endif %}">▤ <span>Results</span></a>
+<a href="{{url_for('notes')}}" class="{% if request.endpoint=='notes' %}active{% endif %}">▧ <span>Notes</span></a>
+<a href="{{url_for('export_page')}}" class="{% if request.endpoint in ['export_page','export_excel'] %}active{% endif %}">⇩ <span>Export Data</span></a>
+<a href="{{url_for('admin')}}" class="{% if request.endpoint and request.endpoint.startswith('admin') %}active{% endif %}">⚙ <span>Admin</span></a>
+<a href="{{url_for('logout')}}">⇥ <span>Logout</span></a>
+</nav>
+<div class="side-bottom"><em>“From Waste<br>to Resilient<br>Structures”</em></div>
+</aside>
+<main class="content">
+{% with messages=get_flashed_messages(with_categories=true) %}
+{% if messages %}<div class="flash-wrap">{% for cat,msg in messages %}<div class="flash {{cat}}">{{msg}}</div>{% endfor %}</div>{% endif %}
+{% endwith %}
+{% block content %}{% endblock %}
+</main>
+</div>
+<footer><span>⚙ Department of Civil Engineering<br>S.R.K.R. Engineering College (A)<br>Bhimavaram, Andhra Pradesh – 534204</span><span>⚗ Research &nbsp; | &nbsp; 🌿 Sustainability &nbsp; | &nbsp; ▥ Innovation</span><span class="green-quote">🌿 Build a Better Tomorrow</span></footer>
+{% else %}
+{% block public_content %}{% endblock %}
+{% endif %}
+<script src="{{url_for('static',filename='app.js')}}"></script>
+</body></html>

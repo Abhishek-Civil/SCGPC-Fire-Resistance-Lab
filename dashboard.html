@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Dashboard{% endblock %}{% block content %}
+<div class="page-head hero-head"><div><h1>Welcome to<br><b>SCGPC Fire Resistance Research Lab</b></h1><p>Track experiments, analyse results, and contribute to sustainable construction.</p></div><div class="quote-card">🌿 <i>“Turning Waste into<br>a Stronger, Greener Future”</i></div></div>
+<div class="stats">
+<div class="stat blue"><b>◈</b><strong>12</strong><span>Total Mixes<br><small>(M0 – M11)</small></span></div>
+<div class="stat red"><b>🔥</b><strong>4</strong><span>Fire Temperatures<br><small>200°C, 400°C, 600°C, 800°C</small></span></div>
+<div class="stat green"><b>🧪</b><strong>144</strong><span>Total Specimens<br><small>12 mixes × 3 reps × 4 temp</small></span></div>
+<div class="stat purple"><b>✓</b><strong>{{filled}}</strong><span>Completed<br><small>({{pct}}%)</small></span></div>
+<div class="stat orange"><b>⌛</b><strong>{{total-filled}}</strong><span>Remaining<br><small>({{100-pct}}%)</small></span></div>
+</div>
+<div class="grid2">
+<section class="card"><h2>Experiment Progress</h2><div class="donut" style="--p:{{pct}}%"><span>{{pct}}%</span></div><div class="legend"><span>● Completed {{filled}}</span><span>● Remaining {{total-filled}}</span><span>● Total {{total}}</span></div></section>
+<section class="card"><h2>Progress by Temperature</h2>{% for t in temps %}<div class="bar-row"><label>{{t}}°C</label><div><i style="width:{{(bytemp[t]/36*100)|round(0)}}%"></i></div><b>{{bytemp[t]}} / 36</b></div>{% endfor %}</section>
+</div>
+<section class="card"><div class="card-title"><h2>Mix-wise Completion Matrix</h2><span class="muted">M0 → M11</span></div>
+<div class="matrix"><table><thead><tr><th>Mix</th>{% for t in temps %}<th>{{t}}°C</th>{% endfor %}<th>Progress</th></tr></thead><tbody>
+{% for m,scba,mol in mixes %}{% set vals=matrix[m] %}<tr><td><b>{{m}}</b></td>{% for v in vals %}<td><span class="dot {{'done' if v==3 else ('partial' if v>0 else 'none')}}">{{v}}</span></td>{% endfor %}<td>{{((vals|sum)/12*100)|round(0)}}%</td></tr>{% endfor %}
+</tbody></table></div></section>
+<div class="grid3">
+<section class="card"><h2>Sample Specimen Images</h2><div class="samples">{% for t in temps %}<div><img src="{{url_for('static',filename='images/sample_'+t|string+'.jpg')}}"><b>{{t}}°C</b><small>(Sample)</small></div>{% endfor %}</div></section>
+<section class="card"><h2>Key Experimental Metrics</h2><div class="metric-grid"><div><b>2.5 kN/s</b><small>CTM Loading Rate</small></div><div><b>2 h</b><small>Fire Exposure Hold</small></div><div><b>100×100 mm</b><small>Cube Size</small></div><div><b>70:30</b><small>Fly Ash : GGBS</small></div></div></section>
+<section class="card"><h2>Quick Actions</h2><div class="quick"><a href="{{url_for('data_entry')}}">＋ Enter Data</a><a href="{{url_for('graphs')}}">▥ View Graphs</a><a href="{{url_for('results')}}">▤ View Results</a><a href="{{url_for('export_page')}}">⇩ Export Excel</a></div></section>
+</div>
+<section class="card"><h2>Recent Entries</h2><table class="simple"><thead><tr><th>Mix</th><th>Temperature</th><th>Rep</th><th>Date</th><th>User</th><th>Status</th></tr></thead><tbody>{% for r in recent %}<tr><td>{{r.mix_id}}</td><td>{{r.temperature}}°C</td><td>R{{r.replicate}}</td><td>{{r.test_date}}</td><td>{{r.submitted_by}}</td><td><span class="badge green">Saved</span></td></tr>{% else %}<tr><td colspan="6" class="muted">No entries yet.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

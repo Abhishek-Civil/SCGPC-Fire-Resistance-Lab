@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Project Details{% endblock %}{% block content %}
+<div class="page-head"><div><h1>▣ Project Details</h1><p>Project identity, team, experimental framework and references.</p></div></div>
+<section class="card"><h2>Project Title</h2><h3 class="big-title">{{project.title}}</h3></section>
+<div class="grid2"><section class="card"><h2>Project Team</h2>{% for p in team %}<div class="team-row"><div class="avatar">{{p.name[:1]}}</div><div><b>{{p.name}}</b><span>{{p.id}} · {{p.role}}</span></div></div>{% endfor %}</section>
+<section class="card"><h2>Supervisor</h2><div class="supervisor"><div class="avatar">V</div><div><b>{{project.supervisor}}</b><span>{{project.department}}</span></div></div><hr><h3>College</h3><p>{{project.college}}</p></section></div>
+<section class="card"><h2>Experimental Parameters</h2><div class="parameter-grid">{% for x in project.parameters.split(' • ') %}<div>✓ {{x}}</div>{% endfor %}</div></section>
+<section class="card"><h2>Aim</h2><p class="lead">{{project.aim}}</p></section>
+<section class="card"><h2>Research Gap</h2><p>{{project.gap}}</p></section>
+<section class="card"><h2>Methodology</h2><div class="steps">{% for x in ['Materials Selection','Mix Design','Casting & Curing','Fire Exposure','Residual Strength Testing','Data Analysis'] %}<div><b>{{loop.index}}</b><span>{{x}}</span></div>{% endfor %}</div></section>
+<section class="card"><h2>References</h2><ol class="refs">{% for r in refs %}<li>{{r}}</li>{% endfor %}</ol></section>
+{% endblock %}
