@@ -108,15 +108,29 @@ def init_db():
         if col not in existing_cols:
             c.execute(f"ALTER TABLE entries ADD COLUMN {col} {typ}")
 
-    defaults=[
-      ("abhishek_admin",os.getenv("SUPERADMIN_PASSWORD","SCGPC@Admin2026"),"Abhishek","superadmin"),
-      ("projectlead",os.getenv("EDITOR_PASSWORD","SCGPC@Lead2026"),"Project Lead / Faculty","editor"),
-      ("common_user",os.getenv("USER_PASSWORD","SCGPC@User2026"),"Common User","user"),
-    ]
-    for u,p,n,r in defaults:
-        try:c.execute("INSERT INTO users(username,password_hash,display_name,role,created_at) VALUES(?,?,?,?,?)",(u,generate_password_hash(p),n,r,datetime.now().isoformat()))
-        except sqlite3.IntegrityError: pass
-    c.commit(); c.close()
+ defaults=[
+    ("abhishek_admin",os.getenv("SUPERADMIN_PASSWORD"),"Main Super Admin","superadmin"),
+    ("project_supervisor",os.getenv("SUPERVISOR_PASSWORD"),"Dr. M. Venkata Rao","superadmin"),
+    ("ajay_babu",os.getenv("EDITOR_PASSWORD"),"RAMAKURI AJAY BABU","editor"),
+    ("common_user",os.getenv("USER_PASSWORD"),"Common User","user"),
+]
+
+for u,p,n,r in defaults:
+    existing=c.execute("SELECT id FROM users WHERE username=?",(u,)).fetchone()
+    if existing:
+        c.execute(
+            "UPDATE users SET password_hash=?, display_name=?, role=?, active=1 WHERE username=?",
+            (generate_password_hash(p),n,r,u)
+        )
+    else:
+        c.execute(
+            "INSERT INTO users(username,password_hash,display_name,role,created_at) VALUES(?,?,?,?,?)",
+            (u,generate_password_hash(p),n,r,datetime.now().isoformat())
+        )
+
+c.execute("UPDATE users SET active=0 WHERE username='projectlead'")
+
+c.commit(); c.close()
 
 init_db()
 
