@@ -466,15 +466,28 @@ def export_excel():
     return send_file(out,as_attachment=True,download_name=out.name)
 
 @app.route("/admin")
-@login_required
+@role_required("superadmin")
 def admin():
-    u=current_user()
-    if u["role"]=="user": return render_template("admin_limited.html")
-    c=db(); users=[dict(x) for x in c.execute("SELECT id,username,display_name,role,active,created_at FROM users ORDER BY id").fetchall()]
-    acts=[dict(x) for x in c.execute("SELECT * FROM activities ORDER BY id DESC LIMIT 8").fetchall()]
-    c.close()
-    return render_template("admin.html",users=users,acts=acts)
+    users = [
+        {
+            "username": username,
+            "display_name": user["display_name"],
+            "role": user["role"],
+            "active": 1
+        }
+        for username, user in DEMO_USERS.items()
+    ]
 
+    c = db()
+    acts = [
+        dict(x)
+        for x in c.execute(
+            "SELECT * FROM activities ORDER BY id DESC LIMIT 8"
+        ).fetchall()
+    ]
+    c.close()
+
+    return render_template("admin.html", users=users, acts=acts)
 @app.route("/admin/users",methods=["POST"])
 @role_required("superadmin")
 def admin_users():
