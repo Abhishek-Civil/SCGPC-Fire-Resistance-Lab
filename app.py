@@ -99,20 +99,26 @@ def init_db():
       id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, activity TEXT, created_at TEXT NOT NULL
     );
     """)
-    existing_cols={r[1] for r in c.execute("PRAGMA table_info(entries)").fetchall()}
+       existing_cols={r[1] for r in c.execute("PRAGMA table_info(entries)").fetchall()}
     migrations={
-      "fire_notes":"TEXT", "heating_rate":"TEXT", "exposure_hours":"REAL", "actual_hold_hours":"REAL",
-      "furnace_used":"TEXT", "photo_before":"TEXT", "photo_after":"TEXT"
+        "fire_notes":"TEXT",
+        "heating_rate":"TEXT",
+        "exposure_hours":"REAL",
+        "actual_hold_hours":"REAL",
+        "furnace_used":"TEXT",
+        "photo_before":"TEXT",
+        "photo_after":"TEXT"
     }
+
     for col,typ in migrations.items():
         if col not in existing_cols:
             c.execute(f"ALTER TABLE entries ADD COLUMN {col} {typ}")
 
-c.commit(); c.close()
+    c.commit()
+    c.close()
+
 
 init_db()
-
-DEMO_USERS = {
     "abhishek_admin": {
         "password": "SCGPC@Admin2026",
         "display_name": "Abhishek",
