@@ -1,11 +1,218 @@
-{% extends "base.html" %}{% block title %}Admin Panel{% endblock %}{% block content %}
-<div class="page-head"><div><h1>⚙ Admin Panel</h1><p>Complete control and management of the website (Super Admin Access Only).</p></div><div class="lock-note">🔐 {{ 'Super Admin Access' if me.role=='superadmin' else 'Editor Access' }}</div></div>
-{% if me.role=='superadmin' %}
-<div class="stats"><div class="stat blue"><b>👥</b><strong>{{users|length}}</strong><span>Total Users</span></div><div class="stat green"><b>▣</b><strong>144</strong><span>Total Records</span></div><div class="stat orange"><b>📁</b><strong>8</strong><span>Workbook Sheets</span></div><div class="stat purple"><b>◷</b><strong>{{acts|length}}</strong><span>Recent Activities</span></div></div>
-<div class="grid2"><section class="card"><div class="card-title"><h2>1. User Management</h2><span class="muted">Create accounts and control access</span></div><form method="post" action="{{url_for('admin_users')}}" class="mini-form"><input name="display_name" placeholder="Display name" required><input name="username" placeholder="Username" required><input name="password" placeholder="Password" required><select name="role"><option value="user">Common User</option><option value="editor">Editor</option><option value="superadmin">Super Admin</option></select><button class="primary">＋ Add User</button></form><table class="simple"><thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>{% for u in users %}<tr><td>{{u.username}}</td><td>{{u.display_name}}</td><td>{{u.role}}</td><td>{{'Active' if u.active else 'Disabled'}}</td><td>{% if u.id != me.id %}<form method="post" action="{{url_for('toggle_user',uid=u.id)}}" style="display:inline"><button class="tiny">{{'Disable' if u.active else 'Enable'}}</button></form><form method="post" action="{{url_for('delete_user',uid=u.id)}}" style="display:inline"><button class="tiny danger">Delete</button></form>{% else %}—{% endif %}</td></tr>{% endfor %}</tbody></table></section>
-<section class="card"><h2>2. Role & Permissions</h2><table class="simple"><thead><tr><th>Feature</th><th>Super Admin</th><th>Editor</th><th>Common User</th></tr></thead><tbody>{% for row in [('View Dashboard','✓','✓','✓'),('Enter Data','✓','✓','✓'),('Edit Data','✓','✓','✕'),('Delete Data','✓','✕','✕'),('Manage Users','✓','✕','✕'),('Website Settings','✓','✕','✕'),('Manage Notes/Details','✓','✓','✓'),('Export Data','✓','✓','✓'),('Admin Controls','✓','✕','✕')] %}<tr><td>{{row[0]}}</td><td>{{row[1]}}</td><td>{{row[2]}}</td><td>{{row[3]}}</td></tr>{% endfor %}</tbody></table></section></div>
-<div class="grid2"><section class="card"><h2>3. Recent Activities</h2><table class="simple"><thead><tr><th>Time</th><th>User</th><th>Activity</th></tr></thead><tbody>{% for a in acts %}<tr><td>{{a.created_at[11:16]}}</td><td>{{a.username}}</td><td>{{a.activity}}</td></tr>{% endfor %}</tbody></table></section><section class="card"><h2>4. System Information</h2><div class="system-list"><p><b>Website:</b> SCGPC Fire Resistance Research Lab</p><p><b>Records:</b> 144 specimen slots</p><p><b>Database:</b> Active</p><p><b>Excel template:</b> Loaded</p><p><b>Status:</b> 🟢 Online</p></div></section></div>
-{% else %}
-<section class="card"><h2>Recent Activities</h2><p>Your Editor account can see basic activity information here. User management, website settings and system controls are restricted to the Super Admin.</p><table class="simple"><thead><tr><th>Time</th><th>User</th><th>Activity</th></tr></thead><tbody>{% for a in acts %}<tr><td>{{a.created_at[11:16]}}</td><td>{{a.username}}</td><td>{{a.activity}}</td></tr>{% endfor %}</tbody></table></section>
-{% endif %}
+{% extends "base.html" %}
+
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+    <div>
+        <h1>⚙ Admin Panel</h1>
+        <p>Website administration and project account information.</p>
+    </div>
+
+    <div class="lock-note">
+        🔐 Super Admin Access
+    </div>
+</div>
+
+<div class="stats">
+
+    <div class="stat blue">
+        <b>👥</b>
+        <strong>{{ users|length }}</strong>
+        <span>Fixed Accounts</span>
+    </div>
+
+    <div class="stat green">
+        <b>▣</b>
+        <strong>144</strong>
+        <span>Total Records</span>
+    </div>
+
+    <div class="stat orange">
+        <b>📁</b>
+        <strong>8</strong>
+        <span>Workbook Sheets</span>
+    </div>
+
+    <div class="stat purple">
+        <b>◷</b>
+        <strong>{{ acts|length }}</strong>
+        <span>Recent Activities</span>
+    </div>
+
+</div>
+
+<div class="grid2">
+
+    <section class="card">
+
+        <div class="card-title">
+            <h2>1. Fixed User Accounts</h2>
+            <span class="muted">Four permanent project accounts</span>
+        </div>
+
+        <table class="simple">
+
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for u in users %}
+
+                <tr>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.display_name }}</td>
+                    <td>{{ u.role }}</td>
+                    <td>Active</td>
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        <p class="muted">
+            🔒 Accounts are fixed for this project.
+        </p>
+
+    </section>
+
+    <section class="card">
+
+        <h2>2. Data Entry Permissions</h2>
+
+        <table class="simple">
+
+            <thead>
+                <tr>
+                    <th>Permission</th>
+                    <th>Super Admin</th>
+                    <th>Project Lead</th>
+                    <th>Common User</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                <tr>
+                    <td>View Data</td>
+                    <td>✓</td>
+                    <td>✓</td>
+                    <td>✓</td>
+                </tr>
+
+                <tr>
+                    <td>Submit New Data</td>
+                    <td>✓</td>
+                    <td>✓</td>
+                    <td>✓</td>
+                </tr>
+
+                <tr>
+                    <td>Edit Existing Data</td>
+                    <td>✓</td>
+                    <td>✓</td>
+                    <td>✕</td>
+                </tr>
+
+                <tr>
+                    <td>Admin Panel</td>
+                    <td>✓</td>
+                    <td>✕</td>
+                    <td>✕</td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </section>
+
+</div>
+
+<div class="grid2">
+
+    <section class="card">
+
+        <h2>3. Recent Activities</h2>
+
+        <table class="simple">
+
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Activity</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for a in acts %}
+
+                <tr>
+                    <td>{{ a.created_at[11:16] }}</td>
+                    <td>{{ a.username }}</td>
+                    <td>{{ a.activity }}</td>
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </section>
+
+    <section class="card">
+
+        <h2>4. System Information</h2>
+
+        <div class="system-list">
+
+            <p>
+                <b>Website:</b>
+                SCGPC Fire Resistance Research Lab
+            </p>
+
+            <p>
+                <b>Accounts:</b>
+                4 Fixed Accounts
+            </p>
+
+            <p>
+                <b>Records:</b>
+                144 specimen slots
+            </p>
+
+            <p>
+                <b>Database:</b>
+                Active
+            </p>
+
+            <p>
+                <b>Excel template:</b>
+                Loaded
+            </p>
+
+            <p>
+                <b>Status:</b>
+                🟢 Online
+            </p>
+
+        </div>
+
+    </section>
+
+</div>
+
 {% endblock %}
