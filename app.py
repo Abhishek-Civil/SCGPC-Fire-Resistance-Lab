@@ -1,9 +1,11 @@
 import os, sqlite3, secrets, uuid
+import httpx
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
 from supabase import create_client
+from supabase.client import ClientOptions
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -24,8 +26,23 @@ SUPABASE_SECRET_KEY=os.getenv("SUPABASE_SECRET_KEY","").strip()
 SUPABASE_DB_URL=os.getenv("SUPABASE_DB_URL","").strip()
 SUPABASE_STORAGE_BUCKET="research-files"
 
+SUPABASE_HTTP_CLIENT = httpx.Client(
+    http2=False,
+    follow_redirects=True,
+    timeout=httpx.Timeout(15.0, connect=5.0, read=15.0, write=15.0, pool=5.0),
+)
+
 supabase_client=(
-    create_client(SUPABASE_URL,SUPABASE_SECRET_KEY)
+    create_client(
+        SUPABASE_URL,
+        SUPABASE_SECRET_KEY,
+        options=ClientOptions(
+            postgrest_client_timeout=15,
+            storage_client_timeout=60,
+            httpx_client=SUPABASE_HTTP_CLIENT,
+            schema="public",
+        ),
+    )
     if SUPABASE_URL and SUPABASE_SECRET_KEY
     else None
 )
