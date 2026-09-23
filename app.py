@@ -3,8 +3,6 @@ from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
-import psycopg
-from psycopg.rows import dict_row
 from supabase import create_client
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify, abort
@@ -87,39 +85,187 @@ REFERENCES=[
 ]
 
 
-class DBCompat:
-    def __init__(self, conn, postgres=False):
-        self.conn=conn
-        self.postgres=postgres
+class QueryResult:
+    def __init__(self, rows=None):
+        self.rows = rows or []
 
-    def _sql(self, query):
-        return query.replace("?", "%s") if self.postgres else query
+    def fetchall(self):
+        return self.rows
+
+    def fetchone(self):
+        return self.rows[0] if self.rows else None
+
+
+class DBCompat:
+    """Small compatibility layer so the existing Flask routes keep their SQL-like interface.
+
+    On Render/Supabase, reads and writes use the Supabase HTTPS API instead of opening a
+    direct PostgreSQL socket connection. This avoids connection hangs on the free Render
+    instance while preserving the existing route logic.
+    """
+
+    def __init__(self, conn=None, postgres=False):
+        self.conn = conn
+        self.postgres = postgres
 
     def execute(self, query, params=None):
-        if params is None:
-            params=()
-        return self.conn.execute(self._sql(query), params)
+        params = tuple(params or ())
+        q = " ".join(query.strip().split()).lower()
+
+        if self.postgres:
+            if not supabase_client:
+                raise RuntimeError("Supabase client is not configured. Check SUPABASE_URL and SUPABASE_SECRET_KEY.")
+            return self._supabase_execute(q, params)
+
+        return QueryResult(list(self.conn.execute(query, params).fetchall()))
+
+    def _entries(self):
+        response = supabase_client.table("entries").select("*").execute()
+        return list(response.data or [])
+
+    def _notes(self):
+        response = supabase_client.table("notes").select("*").execute()
+        return list(response.data or [])
+
+    def _activities(self):
+        response = supabase_client.table("activities").select("*").execute()
+        return list(response.data or [])
+
+    def _sort_entries(self, rows):
+        return sorted(
+            rows,
+            key=lambda r: (
+                int(r.get("temperature") or 0),
+                int(str(r.get("mix_id", "M0"))[1:] or 0),
+                int(r.get("replicate") or 0),
+            ),
+        )
+
+    def _supabase_execute(self, q, params):
+        if q.startswith("select * from entries where mix_id="):
+            mix, temp, rep = params
+            response = (
+                supabase_client.table("entries")
+                .select("*")
+                .eq("mix_id", mix)
+                .eq("temperature", temp)
+                .eq("replicate", rep)
+                .limit(1)
+                .execute()
+            )
+            return QueryResult(list(response.data or []))
+
+        if q.startswith("select * from entries order by temperature"):
+            return QueryResult(self._sort_entries(self._entries()))
+
+        if q == "select * from entries":
+            return QueryResult(self._entries())
+
+        if q.startswith("select * from entries order by updated_at desc limit 6"):
+            rows = sorted(self._entries(), key=lambda r: str(r.get("updated_at") or ""), reverse=True)
+            return QueryResult(rows[:6])
+
+        if q.startswith("select * from notes order by updated_at desc limit 3"):
+            rows = sorted(self._notes(), key=lambda r: str(r.get("updated_at") or ""), reverse=True)
+            return QueryResult(rows[:3])
+
+        if q == "select * from notes order by updated_at desc":
+            rows = sorted(self._notes(), key=lambda r: str(r.get("updated_at") or ""), reverse=True)
+            return QueryResult(rows)
+
+        if q.startswith("select * from activities order by id desc limit 8"):
+            rows = sorted(self._activities(), key=lambda r: int(r.get("id") or 0), reverse=True)
+            return QueryResult(rows[:8])
+
+        if q.startswith("insert into activities"):
+            username, activity, created_at = params
+            supabase_client.table("activities").insert({
+                "username": username,
+                "activity": activity,
+                "created_at": created_at,
+            }).execute()
+            return QueryResult([])
+
+        if q.startswith("insert into notes"):
+            note_date, category, mix_id, temperature, title, body, created_by, created_at, updated_at = params
+            payload = {
+                "note_date": note_date,
+                "category": category,
+                "mix_id": mix_id,
+                "temperature": int(temperature) if temperature not in (None, "") else None,
+                "title": title,
+                "body": body,
+                "created_by": created_by,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            }
+            supabase_client.table("notes").insert(payload).execute()
+            return QueryResult([])
+
+        if q.startswith("insert into entries"):
+            columns = [
+                "mix_id", "temperature", "replicate", "test_date", "pre_mass",
+                "pre_notes", "post_mass", "colour", "cracking", "spalling",
+                "fire_notes", "heating_rate", "exposure_hours", "actual_hold_hours",
+                "furnace_used", "failure_load", "original_strength", "ctm_rate",
+                "remarks", "photo_before", "photo_after", "submitted_by",
+                "created_at", "updated_at",
+            ]
+            payload = dict(zip(columns, params))
+            for key in ("temperature", "replicate"):
+                if payload.get(key) is not None:
+                    payload[key] = int(payload[key])
+            for key in ("pre_mass", "post_mass", "exposure_hours", "actual_hold_hours", "failure_load", "original_strength", "ctm_rate"):
+                if payload.get(key) not in (None, ""):
+                    payload[key] = float(payload[key])
+                else:
+                    payload[key] = None
+            supabase_client.table("entries").insert(payload).execute()
+            return QueryResult([])
+
+        if q.startswith("update entries set"):
+            field_names = [
+                "test_date", "pre_mass", "pre_notes", "post_mass", "colour",
+                "cracking", "spalling", "fire_notes", "heating_rate", "exposure_hours",
+                "actual_hold_hours", "furnace_used", "failure_load", "original_strength",
+                "ctm_rate", "remarks", "photo_before", "photo_after", "submitted_by",
+                "updated_at",
+            ]
+            payload = dict(zip(field_names, params[:20]))
+            mix, temp, rep = params[20:23]
+            for key in ("pre_mass", "post_mass", "exposure_hours", "actual_hold_hours", "failure_load", "original_strength", "ctm_rate"):
+                if payload.get(key) not in (None, ""):
+                    payload[key] = float(payload[key])
+                else:
+                    payload[key] = None
+            response = (
+                supabase_client.table("entries")
+                .update(payload)
+                .eq("mix_id", mix)
+                .eq("temperature", int(temp))
+                .eq("replicate", int(rep))
+                .execute()
+            )
+            return QueryResult(list(response.data or []))
+
+        raise NotImplementedError(f"Unsupported Supabase query: {query}")
 
     def commit(self):
-        self.conn.commit()
+        if not self.postgres:
+            self.conn.commit()
 
     def rollback(self):
-        self.conn.rollback()
+        if not self.postgres:
+            self.conn.rollback()
 
     def close(self):
-        self.conn.close()
+        if not self.postgres and self.conn is not None:
+            self.conn.close()
 
 
 def db():
-    if SUPABASE_DB_URL:
-        if "[YOUR-PASSWORD]" in SUPABASE_DB_URL:
-            raise RuntimeError("SUPABASE_DB_URL still contains [YOUR-PASSWORD].")
-        conninfo=SUPABASE_DB_URL
-        if "sslmode=" not in conninfo.lower():
-            separator="&" if "?" in conninfo else "?"
-            conninfo=f"{conninfo}{separator}sslmode=require"
-        conn=psycopg.connect(conninfo,row_factory=dict_row)
-        return DBCompat(conn,postgres=True)
+    if SUPABASE_URL and SUPABASE_SECRET_KEY:
+        return DBCompat(postgres=True)
 
     c=sqlite3.connect(DB_PATH)
     c.row_factory=sqlite3.Row
@@ -127,83 +273,9 @@ def db():
 
 
 def init_db():
-    if SUPABASE_DB_URL:
-        c=db()
-
-        c.execute("""
-        CREATE TABLE IF NOT EXISTS users(
-          id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-          username TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          display_name TEXT NOT NULL,
-          role TEXT NOT NULL CHECK(role IN ('superadmin','editor','user')),
-          active INTEGER NOT NULL DEFAULT 1,
-          created_at TEXT NOT NULL
-        )
-        """)
-
-        c.execute("""
-        CREATE TABLE IF NOT EXISTS entries(
-          id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-          mix_id TEXT NOT NULL,
-          temperature INTEGER NOT NULL,
-          replicate INTEGER NOT NULL,
-          test_date TEXT NOT NULL,
-          pre_mass DOUBLE PRECISION,
-          pre_notes TEXT,
-          post_mass DOUBLE PRECISION,
-          colour TEXT,
-          cracking TEXT,
-          spalling TEXT,
-          fire_notes TEXT,
-          heating_rate TEXT,
-          exposure_hours DOUBLE PRECISION,
-          actual_hold_hours DOUBLE PRECISION,
-          furnace_used TEXT,
-          failure_load DOUBLE PRECISION,
-          original_strength DOUBLE PRECISION,
-          ctm_rate DOUBLE PRECISION,
-          remarks TEXT,
-          photo_before TEXT,
-          photo_after TEXT,
-          submitted_by TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          UNIQUE(mix_id,temperature,replicate)
-        )
-        """)
-
-        c.execute("""
-        CREATE TABLE IF NOT EXISTS notes(
-          id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-          note_date TEXT NOT NULL,
-          category TEXT NOT NULL,
-          mix_id TEXT,
-          temperature INTEGER,
-          title TEXT NOT NULL,
-          body TEXT NOT NULL,
-          created_by TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        )
-        """)
-
-        c.execute("""
-        CREATE TABLE IF NOT EXISTS activities(
-          id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-          username TEXT,
-          activity TEXT,
-          created_at TEXT NOT NULL
-        )
-        """)
-
-        c.execute("CREATE INDEX IF NOT EXISTS idx_entries_temperature ON entries(temperature)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_entries_mix ON entries(mix_id)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_activities_created ON activities(created_at)")
-
-        c.commit()
-        c.close()
+    # Supabase tables are already created in the project's SQL editor.
+    # Avoid opening a PostgreSQL socket during application startup.
+    if SUPABASE_URL and SUPABASE_SECRET_KEY:
         return
 
     c=db()
@@ -278,11 +350,9 @@ def init_db():
         "photo_before":"TEXT",
         "photo_after":"TEXT"
     }
-
     for col,typ in migrations.items():
         if col not in existing_cols:
             c.conn.execute(f"ALTER TABLE entries ADD COLUMN {col} {typ}")
-
     c.commit()
     c.close()
 
