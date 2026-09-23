@@ -488,30 +488,6 @@ def admin():
     c.close()
 
     return render_template("admin.html", users=users, acts=acts)
-@app.route("/admin/users",methods=["POST"])
-@role_required("superadmin")
-def admin_users():
-    username=request.form["username"].strip(); password=request.form["password"]; name=request.form["display_name"].strip(); role=request.form["role"]
-    if role not in ("superadmin","editor","user"): role="user"
-    c=db()
-    try:
-        c.execute("INSERT INTO users(username,password_hash,display_name,role,active,created_at) VALUES(?,?,?,?,1,?)",(username,generate_password_hash(password),name,role,datetime.now().isoformat()))
-        c.commit(); flash("User created.","ok"); log(f"Created user {username}")
-    except sqlite3.IntegrityError: flash("Username already exists.","error")
-    c.close(); return redirect(url_for("admin"))
-
-@app.route("/admin/users/<int:uid>/toggle",methods=["POST"])
-@role_required("superadmin")
-def toggle_user(uid):
-    if uid==current_user()["id"]: flash("You cannot deactivate your own Super Admin account.","error"); return redirect(url_for("admin"))
-    c=db(); c.execute("UPDATE users SET active=1-active WHERE id=?",(uid,)); c.commit(); c.close(); log("Changed user access"); return redirect(url_for("admin"))
-
-@app.route("/admin/users/<int:uid>/delete",methods=["POST"])
-@role_required("superadmin")
-def delete_user(uid):
-    if uid==current_user()["id"]: flash("You cannot delete your own account.","error"); return redirect(url_for("admin"))
-    c=db(); c.execute("DELETE FROM users WHERE id=?",(uid,)); c.commit(); c.close(); log("Deleted user"); return redirect(url_for("admin"))
-
 @app.errorhandler(403)
 def forbidden(e): return render_template("error.html",code=403,message="Access restricted. Only authorized roles can use this section."),403
 @app.errorhandler(404)
