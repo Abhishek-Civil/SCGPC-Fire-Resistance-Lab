@@ -3,3 +3,5 @@ openpyxl>=3.1,<4
 Werkzeug>=3.0,<4
 gunicorn>=23,<24
 Pillow>=10,<12
+supabase>=2,<3
+psycopg[binary]>=3.2,<4
