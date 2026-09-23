@@ -134,10 +134,45 @@ c.commit(); c.close()
 
 init_db()
 
+DEMO_USERS = {
+    "abhishek_admin": {
+        "password": "SCGPC@Admin2026",
+        "display_name": "Abhishek",
+        "role": "superadmin"
+    },
+    "project_supervisor": {
+        "password": "SCGPC@Supervisor2026",
+        "display_name": "Dr. M. Venkata Rao",
+        "role": "superadmin"
+    },
+    "ajay_babu": {
+        "password": "SCGPC@Ajay2026",
+        "display_name": "RAMAKURI AJAY BABU",
+        "role": "editor"
+    },
+    "common_user": {
+        "password": "SCGPC@Common2026",
+        "display_name": "Common User",
+        "role": "user"
+    }
+}
+
+
 def current_user():
-    if not session.get("uid"): return None
-    c=db(); u=c.execute("SELECT * FROM users WHERE id=? AND active=1",(session["uid"],)).fetchone(); c.close()
-    return dict(u) if u else None
+    username = session.get("username")
+    if not username:
+        return None
+
+    user = DEMO_USERS.get(username)
+    if not user:
+        return None
+
+    return {
+        "username": username,
+        "display_name": user["display_name"],
+        "role": user["role"],
+        "active": 1
+    }
 
 def login_required(f):
     @wraps(f)
@@ -190,13 +225,20 @@ def home():
 
 @app.route("/login",methods=["GET","POST"])
 def login():
-    if request.method=="POST":
-        username=request.form.get("username","").strip()
-        password=request.form.get("password","")
-        c=db(); u=c.execute("SELECT * FROM users WHERE username=? AND active=1",(username,)).fetchone(); c.close()
-        if u and check_password_hash(u["password_hash"],password):
-            session["uid"]=u["id"]; log("Logged in"); return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        username = request.form.get("username","").strip()
+        password = request.form.get("password","")
+
+        user = DEMO_USERS.get(username)
+
+        if user and user["password"] == password:
+            session.clear()
+            session["username"] = username
+            log("Logged in")
+            return redirect(url_for("dashboard"))
+
         flash("Incorrect username or password.","error")
+
     return render_template("login.html")
 
 @app.route("/logout")
