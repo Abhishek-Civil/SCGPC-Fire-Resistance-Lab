@@ -73,33 +73,70 @@ def db():
 
 def init_db():
     c=db()
+
     c.executescript("""
     CREATE TABLE IF NOT EXISTS users(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL, display_name TEXT NOT NULL,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('superadmin','editor','user')),
-      active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
     );
+
     CREATE TABLE IF NOT EXISTS entries(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, mix_id TEXT NOT NULL, temperature INTEGER NOT NULL,
-      replicate INTEGER NOT NULL, test_date TEXT NOT NULL,
-      pre_mass REAL, pre_notes TEXT, post_mass REAL, colour TEXT, cracking TEXT, spalling TEXT,
-      fire_notes TEXT, heating_rate TEXT, exposure_hours REAL, actual_hold_hours REAL, furnace_used TEXT,
-      failure_load REAL, original_strength REAL, ctm_rate REAL, remarks TEXT,
-      photo_before TEXT, photo_after TEXT,
-      submitted_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      mix_id TEXT NOT NULL,
+      temperature INTEGER NOT NULL,
+      replicate INTEGER NOT NULL,
+      test_date TEXT NOT NULL,
+      pre_mass REAL,
+      pre_notes TEXT,
+      post_mass REAL,
+      colour TEXT,
+      cracking TEXT,
+      spalling TEXT,
+      fire_notes TEXT,
+      heating_rate TEXT,
+      exposure_hours REAL,
+      actual_hold_hours REAL,
+      furnace_used TEXT,
+      failure_load REAL,
+      original_strength REAL,
+      ctm_rate REAL,
+      remarks TEXT,
+      photo_before TEXT,
+      photo_after TEXT,
+      submitted_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
       UNIQUE(mix_id,temperature,replicate)
     );
+
     CREATE TABLE IF NOT EXISTS notes(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, note_date TEXT NOT NULL, category TEXT NOT NULL,
-      mix_id TEXT, temperature INTEGER, title TEXT NOT NULL, body TEXT NOT NULL,
-      created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_date TEXT NOT NULL,
+      category TEXT NOT NULL,
+      mix_id TEXT,
+      temperature INTEGER,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
+
     CREATE TABLE IF NOT EXISTS activities(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, activity TEXT, created_at TEXT NOT NULL
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT,
+      activity TEXT,
+      created_at TEXT NOT NULL
     );
     """)
-       existing_cols={r[1] for r in c.execute("PRAGMA table_info(entries)").fetchall()}
+
+    existing_cols={r[1] for r in c.execute("PRAGMA table_info(entries)").fetchall()}
+
     migrations={
         "fire_notes":"TEXT",
         "heating_rate":"TEXT",
@@ -119,6 +156,9 @@ def init_db():
 
 
 init_db()
+
+
+DEMO_USERS = {
     "abhishek_admin": {
         "password": "SCGPC@Admin2026",
         "display_name": "Abhishek",
