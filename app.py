@@ -3,6 +3,7 @@ import httpx
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
+from io import BytesIO
 
 from supabase import create_client
 from supabase.client import ClientOptions
@@ -11,7 +12,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from PIL import Image
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.chart import LineChart, BarChart, Reference
 from openpyxl.chart.label import DataLabelList
 
@@ -64,6 +66,43 @@ MIXES=[
 ]
 TEMPS=[200,400,600,800]
 REPS=[1,2,3]
+
+GRAPH_CATEGORIES=[
+    {"id":"strength","label":"Strength Analysis","icon":"▥"},
+    {"id":"mass","label":"Mass Loss Analysis","icon":"⚖"},
+    {"id":"scba","label":"SCBA Performance","icon":"♧"},
+    {"id":"statistics","label":"Statistical Analysis","icon":"∑"},
+    {"id":"overall","label":"Overall Comparison","icon":"▱"},
+    {"id":"advanced","label":"Advanced Graphs","icon":"▦"},
+]
+
+GRAPH_CATALOG=[
+    {"id":"residual-temperature","name":"Residual Strength vs Temperature","type":"line","category":"strength","metric":"residual","x":"temperature","group":"mix"},
+    {"id":"strength-temperature","name":"Compressive Strength vs Temperature","type":"line","category":"strength","metric":"strength","x":"temperature","group":"mix"},
+    {"id":"mass-temperature","name":"Mass Loss vs Temperature","type":"line","category":"mass","metric":"mass_loss","x":"temperature","group":"mix"},
+    {"id":"residual-scba","name":"Residual Strength vs SCBA Percentage","type":"line","category":"scba","metric":"residual","x":"scba","group":"temperature"},
+    {"id":"mix-strength","name":"Mix-wise Strength Comparison","type":"bar","category":"strength","metric":"strength","x":"mix","group":"mix"},
+    {"id":"temperature-strength","name":"Temperature-wise Strength Comparison","type":"bar","category":"strength","metric":"strength","x":"temperature","group":"temperature"},
+    {"id":"molarity-comparison","name":"4M vs 6M Comparison","type":"bar","category":"strength","metric":"residual","x":"molarity","group":"molarity"},
+    {"id":"mass-comparison","name":"Mass Loss Comparison","type":"bar","category":"mass","metric":"mass_loss","x":"mix","group":"mix"},
+    {"id":"scba-residual","name":"SCBA vs Residual Strength","type":"scatter","category":"scba","metric":"residual","x":"scba","group":"temperature"},
+    {"id":"temperature-mass","name":"Temperature vs Mass Loss","type":"scatter","category":"mass","metric":"mass_loss","x":"temperature","group":"mix"},
+    {"id":"mass-residual","name":"Mass Loss vs Residual Strength","type":"scatter","category":"statistics","metric":"residual","x":"mass_loss","group":"mix"},
+    {"id":"mean-sd","name":"Mean ± Standard Deviation","type":"error","category":"statistics","metric":"residual","x":"temperature","group":"mix"},
+    {"id":"replicate-strength","name":"Strength Variation Between Replicates","type":"error","category":"statistics","metric":"strength","x":"replicate","group":"mix"},
+    {"id":"temperature-variability","name":"Temperature-wise Variability","type":"error","category":"statistics","metric":"residual","x":"temperature","group":"temperature"},
+    {"id":"heat-residual","name":"Mix vs Temperature — Residual Strength","type":"heatmap","category":"statistics","metric":"residual","x":"temperature","group":"mix"},
+    {"id":"heat-mass","name":"Mix vs Temperature — Mass Loss","type":"heatmap","category":"mass","metric":"mass_loss","x":"temperature","group":"mix"},
+    {"id":"heat-scba","name":"SCBA vs Temperature — Strength","type":"heatmap","category":"scba","metric":"strength","x":"temperature","group":"scba"},
+    {"id":"completion","name":"Specimen Completion Percentage","type":"pie","category":"overall","metric":"completion","x":"condition","group":"completion"},
+    {"id":"condition-distribution","name":"Distribution of Specimen Conditions","type":"doughnut","category":"overall","metric":"condition","x":"temperature","group":"temperature"},
+    {"id":"box-temperature","name":"Strength Distribution by Temperature","type":"box","category":"statistics","metric":"strength","x":"temperature","group":"temperature"},
+    {"id":"box-mix","name":"Strength Distribution by Mix","type":"box","category":"strength","metric":"strength","x":"mix","group":"mix"},
+    {"id":"box-molarity","name":"Replicate Variability by Molarity","type":"box","category":"statistics","metric":"strength","x":"molarity","group":"molarity"},
+    {"id":"radar-mix","name":"Mix Performance Comparison","type":"radar","category":"overall","metric":"residual","x":"temperature","group":"mix"},
+    {"id":"radar-molarity","name":"4M vs 6M Performance","type":"radar","category":"overall","metric":"residual","x":"temperature","group":"molarity"},
+    {"id":"radar-multi","name":"Multi-parameter Comparison","type":"radar","category":"advanced","metric":"multi","x":"parameter","group":"mix"},
+]
 
 TEAM=[
     {"id":"24B95A0128","name":"RAMAKURI AJAY BABU","role":"Project Lead"},
@@ -669,7 +708,111 @@ def data_entry():
 @app.route("/graphs")
 @login_required
 def graphs():
-    return render_template("graphs.html")
+    return render_template(
+        "graphs.html",
+        graph_categories=GRAPH_CATEGORIES,
+        graph_catalog=GRAPH_CATALOG,
+        graph_mixes=[{"id":mix,"scba":scba,"molarity":molarity} for mix,scba,molarity in MIXES],
+        graph_temperatures=TEMPS,
+    )
+
+
+@app.route("/api/graphs/data")
+@login_required
+def graphs_data_api():
+    """Return the complete specimen grid; absent or unmeasured values stay null."""
+    source_rows=all_entries()
+    by_specimen={(str(row.get("mix_id")),int(row.get("temperature") or 0),int(row.get("replicate") or 0)):row for row in source_rows}
+    records=[]
+    for mix,scba,molarity in MIXES:
+        for temperature in TEMPS:
+            for replicate in REPS:
+                row=by_specimen.get((mix,temperature,replicate))
+                mass_loss,strength,residual=entry_metrics(row) if row else (None,None,None)
+                raw={key:(row.get(key) if row else None) for key in ("pre_mass","post_mass","failure_load","original_strength","colour","cracking","spalling")}
+                has_measurement=bool(row and any(row.get(key) not in (None,"") for key in ("pre_mass","post_mass","failure_load","original_strength")))
+                physical=[value for value in (raw["cracking"],raw["spalling"]) if value not in (None,"","None")]
+                condition=" · ".join(physical) if physical else ("No recorded damage" if row and (raw["cracking"]=="None" or raw["spalling"]=="None") else "Condition not recorded")
+                records.append({
+                    "mix":mix,"temperature":temperature,"replicate":replicate,
+                    "scba":scba,"molarity":molarity,
+                    "mass_loss":mass_loss,"strength":strength,"residual":residual,
+                    "mass_loss_raw":mass_loss,"strength_raw":strength,"residual_raw":residual,
+                    "present":has_measurement,"condition":condition,
+                    **raw,
+                })
+    completed=sum(1 for record in records if record["present"])
+    return jsonify({"records":records,"summary":{"mixes":len(MIXES),"temperatures":len(TEMPS),"replicates":len(REPS),"specimens":len(records),"completed":completed,"completion_percent":round(completed/len(records)*100,1) if records else 0}})
+
+
+@app.route("/export/graphs.xlsx")
+@login_required
+def export_graphs_excel():
+    selected_mixes=set(request.args.get("mixes","").split(","))
+    selected_temps=set()
+    for value in request.args.get("temperatures","").split(","):
+        try: selected_temps.add(int(value))
+        except (TypeError,ValueError): pass
+    selected_mixes={mix for mix,_,_ in MIXES if mix in selected_mixes} or {mix for mix,_,_ in MIXES}
+    selected_temps=selected_temps.intersection(TEMPS) or set(TEMPS)
+    selected=[row for row in all_entries() if row.get("mix_id") in selected_mixes and int(row.get("temperature") or 0) in selected_temps]
+    lookup={(str(row.get("mix_id")),int(row.get("temperature") or 0),int(row.get("replicate") or 0)):row for row in selected}
+
+    workbook=Workbook()
+    specimens=workbook.active
+    specimens.title="Specimens"
+    headers=["Mix","SCBA (%)","Molarity","Temperature (°C)","Replicate","Pre-fire mass (g)","Post-fire mass (g)","Failure load (kN)","Original strength (MPa)","Mass loss (%)","Strength (MPa)","Residual strength (%)","Colour","Cracking","Spalling","Recorded"]
+    specimens.append(headers)
+    mixmeta={mix:(scba,molarity) for mix,scba,molarity in MIXES}
+    for mix in [item[0] for item in MIXES if item[0] in selected_mixes]:
+        scba,molarity=mixmeta[mix]
+        for temperature in TEMPS:
+            if temperature not in selected_temps: continue
+            for replicate in REPS:
+                row=lookup.get((mix,temperature,replicate),{})
+                mass_loss,strength,residual=entry_metrics(row) if row else (None,None,None)
+                recorded=any(row.get(key) not in (None,"") for key in ("pre_mass","post_mass","failure_load","original_strength"))
+                specimens.append([mix,scba,molarity,temperature,replicate,row.get("pre_mass"),row.get("post_mass"),row.get("failure_load"),row.get("original_strength"),mass_loss,strength,residual,row.get("colour"),row.get("cracking"),row.get("spalling"),"Yes" if recorded else "No"])
+
+    summary=workbook.create_sheet("Mean and SD")
+    summary.append(["Mix","SCBA (%)","Molarity","Temperature (°C)","Mass loss mean (%)","Mass loss SD","Strength mean (MPa)","Strength SD","Residual mean (%)","Residual SD","Measured replicates"])
+    for mix in [item[0] for item in MIXES if item[0] in selected_mixes]:
+        scba,molarity=mixmeta[mix]
+        for temperature in TEMPS:
+            if temperature not in selected_temps: continue
+            values={"mass_loss":[],"strength":[],"residual":[]}
+            for replicate in REPS:
+                row=lookup.get((mix,temperature,replicate))
+                if not row: continue
+                mass_loss,strength,residual=entry_metrics(row)
+                for name,value in (("mass_loss",mass_loss),("strength",strength),("residual",residual)):
+                    if value is not None: values[name].append(value)
+            def mean_sd(name):
+                nums=values[name]
+                if not nums: return None,None
+                mean=sum(nums)/len(nums)
+                sd=(sum((value-mean)**2 for value in nums)/(len(nums)-1))**0.5 if len(nums)>1 else None
+                return mean,sd
+            mass_mean,mass_sd=mean_sd("mass_loss"); strength_mean,strength_sd=mean_sd("strength"); residual_mean,residual_sd=mean_sd("residual")
+            measured=sum(1 for replicate in REPS if lookup.get((mix,temperature,replicate)) and any(value is not None for value in entry_metrics(lookup.get((mix,temperature,replicate)))))
+            summary.append([mix,scba,molarity,temperature,mass_mean,mass_sd,strength_mean,strength_sd,residual_mean,residual_sd,measured])
+
+    header_fill=PatternFill("solid",fgColor="1565C0")
+    header_font=Font(color="FFFFFF",bold=True)
+    for sheet in workbook.worksheets:
+        sheet.freeze_panes="A2"
+        sheet.auto_filter.ref=sheet.dimensions
+        for cell in sheet[1]:
+            cell.fill=header_fill; cell.font=header_font; cell.alignment=Alignment(horizontal="center",vertical="center",wrap_text=True)
+        for column_cells in sheet.columns:
+            width=min(30,max(12,max(len(str(cell.value or "")) for cell in column_cells)+2))
+            sheet.column_dimensions[column_cells[0].column_letter].width=width
+        for row in sheet.iter_rows(min_row=2):
+            for cell in row:
+                if isinstance(cell.value,(int,float)) and cell.column not in (2,4,5,11,16):
+                    cell.number_format="0.00"
+    output=BytesIO(); workbook.save(output); output.seek(0)
+    return send_file(output,mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",as_attachment=True,download_name="SCGPC_Graph_Analysis.xlsx")
 
 
 @app.route("/api/graph")
@@ -860,3 +1003,4 @@ def server_error(e): return render_template("error.html",code=500,message="Serve
 
 if __name__=="__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT","5000")),debug=False)
+
