@@ -7,8 +7,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% block page_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 {% if me %}
 <header class="topbar">
   <div class="brand-mini"><div class="flame">🔥</div><div><b>SCGPC FIRE RESISTANCE RESEARCH LAB</b><span>Self-Compacting Geopolymer Concrete | Experiment • Analyse • Innovate</span></div></div>
@@ -42,4 +43,6 @@
 {% block public_content %}{% endblock %}
 {% endif %}
 <script src="{{url_for('static',filename='app.js')}}"></script>
+{% block page_scripts %}{% endblock %}
 </body></html>
+

@@ -1,5 +1,48 @@
-{% extends "base.html" %}{% block title %}Graphs & Analysis{% endblock %}{% block content %}
-<div class="page-head"><div><h1>▥ Graphs & Analysis</h1><p>Choose exactly what you want to compare, then generate the graph.</p></div></div>
-<section class="card filters"><div><label>X-Axis<select id="gx"><option value="temperature">Temperature (°C)</option><option value="scba">SCBA Replacement (%)</option></select></label><label>Y-Axis<select id="gy"><option value="residual">Residual Compressive Strength (%)</option><option value="strength">Residual Compressive Strength (MPa)</option><option value="mass">Mass Loss (%)</option></select></label><label>Group By<select id="gg"><option value="mix">Mix ID</option><option value="temperature">Temperature</option></select></label><button class="primary" onclick="makeGraph()">▥ Generate Graph</button></div></section>
-<section class="chart-grid"><div class="card chart-card"><div class="card-title"><h2 id="chartTitle">Residual Compressive Strength vs Temperature</h2><button class="secondary" onclick="downloadChart()">⇩ Download</button></div><canvas id="mainChart"></canvas></div><div class="card"><h2>Suggested Analysis</h2><div class="suggestions"><button onclick="preset('temperature','residual','mix')">Residual Strength vs Temperature</button><button onclick="preset('scba','residual','temperature')">Residual Strength vs SCBA</button><button onclick="preset('temperature','mass','mix')">Mass Loss vs Temperature</button><button onclick="preset('temperature','strength','mix')">Strength (MPa) vs Temperature</button></div></div></section>
+{% extends "base.html" %}
+{% block title %}Graphs & Analysis | SCGPC Research Lab{% endblock %}
+{% block page_head %}<link rel="stylesheet" href="{{ url_for('static',filename='graphs.css') }}">{% endblock %}
+{% block body_class %}graphs-page{% endblock %}
+{% block content %}
+<section class="graph-heading">
+  <div class="graph-heading-copy"><span class="graph-heading-icon">▥</span><div><h1>Graphs &amp; Analysis</h1><p>Visualize, compare and analyze experimental results of SCGPC under fire exposure.</p></div></div>
+  <div class="graph-stats" aria-label="Research dataset totals">
+    <div class="graph-stat blue"><span class="stat-icon">◇</span><div><strong>12</strong><span>Mixes</span><small>M0 – M11</small></div></div>
+    <div class="graph-stat orange"><span class="stat-icon">♨</span><div><strong>4</strong><span>Temperatures</span><small>200°C – 800°C</small></div></div>
+    <div class="graph-stat purple"><span class="stat-icon">▱</span><div><strong>3</strong><span>Replicates</span><small>R1, R2, R3</small></div></div>
+    <div class="graph-stat green"><span class="stat-icon">⚗</span><div><strong id="specimenTotal">144</strong><span>Total Specimens</span><small id="completionSummary">12 × 4 × 3</small></div></div>
+  </div>
+</section>
+
+<nav class="graph-category-tabs" aria-label="Analysis categories">
+  {% for category in graph_categories %}<button type="button" class="graph-category-tab {% if loop.first %}active{% endif %}" data-category="{{ category.id }}"><span>{{ category.icon }}</span>{{ category.label }}</button>{% endfor %}
+</nav>
+
+<section class="graph-workspace">
+  <aside class="graph-config card">
+    <h2><span>⚙</span> Graph Configuration</h2>
+    <label class="graph-field">Select Analysis <b>*</b><select id="analysisSelect" required></select></label>
+    <label class="graph-field">Graph Type <b>*</b><select id="graphTypeSelect" required></select></label>
+    <div class="graph-field"><span class="field-label">Select Mix(es) <b>*</b></span>
+      <details class="multi-picker" id="mixPicker"><summary id="mixSummary">5 mixes selected <span>⌄</span></summary><div class="multi-picker-options">{% for mix in graph_mixes %}<label><input class="mix-checkbox" type="checkbox" value="{{ mix.id }}" {% if mix.id in ['M0','M2','M4','M6','M8'] %}checked{% endif %}><span><b>{{ mix.id }}</b><small>{{ mix.scba }}% SCBA · {{ mix.molarity }}</small></span></label>{% endfor %}</div></details>
+    </div>
+    <div class="graph-field"><span class="field-label">Temperature Range <b>*</b></span><details class="multi-picker" id="temperaturePicker"><summary id="temperatureSummary">All Temperatures (200°C – 800°C) <span>⌄</span></summary><div class="multi-picker-options temperature-options">{% for temperature in graph_temperatures %}<label><input class="temperature-checkbox" type="checkbox" value="{{ temperature }}" checked><span><b>{{ temperature }}°C</b></span></label>{% endfor %}</div></details></div>
+    <fieldset class="graph-field display-choice"><legend>Data Display <b>*</b></legend><label><input type="radio" name="dataDisplay" value="average" checked><span>Average (Mean ± SD)</span></label><label><input type="radio" name="dataDisplay" value="individual"><span>Individual Replicates (R1, R2, R3)</span></label></fieldset>
+    <label class="error-toggle"><input type="checkbox" id="showErrorBars" checked><span>Show Error Bars (± Standard Deviation)</span></label>
+    <div class="graph-config-actions"><button class="generate-graph" id="generateGraph"><span>▶</span> Generate Graph</button><button class="reset-graph" id="resetGraph">↻ Reset</button></div>
+  </aside>
+
+  <section class="graph-output">
+    <div class="graph-visual-card card">
+      <div class="graph-visual-heading"><div class="graph-title-wrap"><span class="visual-icon">▥</span><div><h2 id="chartTitle">Residual Strength vs Temperature</h2><p id="chartSubtitle">Variation of residual compressive strength for selected mixes after fire exposure.</p></div></div><div class="graph-actions"><button type="button" id="saveGraph" class="graph-action-button">♧ <span>Save Graph</span></button><button type="button" id="downloadPng" class="graph-action-button blue-action">⇩ <span>Download PNG</span></button><button type="button" id="exportExcel" class="graph-action-button excel-action">▣ <span>Export to Excel</span></button></div></div>
+      <div class="chart-area"><canvas id="mainChart" aria-label="Generated experimental graph"></canvas><div id="heatmapView" class="heatmap-view" hidden></div><canvas id="boxPlotView" class="box-plot-view" hidden></canvas><div id="chartEmpty" class="chart-empty" hidden>No measured values match these filters yet. Add specimen measurements in Data Entry, then generate the graph again.</div></div>
+      <div class="graph-data-tabs"><button type="button" class="graph-data-tab active" data-panel="table">▥ <span>Data Table</span></button><button type="button" class="graph-data-tab" data-panel="insights">♧ <span>Graph Insights</span></button><span id="graphDataStatus" class="graph-data-status">Loading specimen data…</span></div>
+      <div class="graph-lower-panel"><div id="dataTablePanel" class="data-table-panel"><div class="graph-table-wrap"><table id="graphDataTable" class="graph-data-table"></table></div></div><div id="insightsPanel" class="insights-panel"><div class="insight-heading"><span>◎</span><h3>Key Insights</h3></div><ul id="graphInsights"></ul></div></div>
+    </div>
+  </section>
+</section>
 {% endblock %}
+{% block page_scripts %}
+<script>window.GRAPH_CATALOG={{ graph_catalog|tojson }};window.GRAPH_CATEGORIES={{ graph_categories|tojson }};window.GRAPH_MIXES={{ graph_mixes|tojson }};window.GRAPH_TEMPERATURES={{ graph_temperatures|tojson }};</script>
+<script src="{{ url_for('static',filename='graphs.js') }}"></script>
+{% endblock %}
+
