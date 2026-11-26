@@ -76,6 +76,7 @@
 .graph-action-button:disabled{opacity:.52;cursor:not-allowed}
 .chart-area{position:relative;min-height:318px;height:318px;margin:10px 0 6px}
 .chart-area canvas{width:100%!important;height:100%!important}
+.graphs-page [hidden]{display:none!important}
 .chart-empty{position:absolute;inset:20px;display:grid;place-items:center;text-align:center;color:#64748b;background:#f8fbff;border:1px dashed #c5d5e8;border-radius:10px;padding:25px}
 .graph-data-tabs{display:flex;align-items:center;gap:8px;border-bottom:1px solid #dce7f4;margin:0 -1px}
 .graph-data-tab{border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;color:#23395f;padding:8px 13px;font-size:13px;font-weight:600}
